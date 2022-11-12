@@ -1,14 +1,26 @@
+#! /bin/bash
 set -euxo pipefail
 
-for IP in 192.168.12.{11,12} do
+TR_FILES="/opt/visiology/postgres-docker/dump"
 
-  cp ul-visiology-05.05.2021.md5 /backup/senddir/
-  sudo ScanSendService -m:2 -i:$IP
-  #check if file still here
-  while [ -f /backup/senddir/ul-visiology-05.05.2021.md5 ]
-    do echo $(date) File still here...
-    sleep 10
+if  [[ -n $(find $TR_FILES -type f -name "*$(date +%d'.'%m'.'%Y).dump*") ]]
+then
+  cd /etc/strom21 #search scan_cfg
+  sudo ScanSendService -m:3   #stop STORM-transfer-service if it works
+
+  for IP in 192.168.12.{11,12}
+  do
+    cp $TR_FILES/*$(date +%d'.'%m'.'%Y)*{md5,dump} /backup/senddir/
+    sudo ScanSendService -m:2 -i:$IP #start data transfer
+    echo "start transfer"
+    #check if file still here
+    while [[ -n $(find /backup/senddir/ -type f -name "*$(date +%d'.'%m'.'%Y).dump*") ]]
+      do echo $(date) File still here...
+      sleep 10
+    done
+  sudo ScanSendService -m:3 #stop STORM-transfer-service
   done
-  sudo ScanSendService -m:3
-
-done
+  find /opt/visiology/postgres-docker/dump -type f -name "*$(date +%d'.'%m'.'%Y).dump*"  -exec rm  {} \;
+else
+  echo "dump files not found in $TR_FILES"
+fi
